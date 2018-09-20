@@ -82,3 +82,41 @@ var commandPull = cli.Command{
 		return nil
 	},
 }
+
+var commandPush = cli.Command{
+	Name:  "push",
+	Usage: "Push local entries to remote",
+	Action: func(c *cli.Context) error {
+		path := c.Args().First()
+		if path == "" {
+			cli.ShowCommandHelp(c, "push")
+			return errCommandHelp
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		entry, err := entryFromReader(f)
+		if err != nil {
+			return err
+		}
+
+		remoteRoot, err := entry.remoteRoot()
+		if err != nil {
+			return err
+		}
+
+		conf, err := loadConfiguration()
+		if err != nil {
+			return err
+		}
+
+		//https://qiita.com/api/v2/docs#patch-apiv2itemsitem_id
+		_, err = newBroker(conf).UploadFresh(entry)
+
+		return err
+	},
+}

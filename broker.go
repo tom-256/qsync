@@ -72,30 +72,30 @@ func (b *broker) FetchRemoteEntries() ([]*entry, error) {
 
 //APIの返り値データをentry型に変換
 func convertItemsToEntry(i *item) (*entry, error) {
-	createdAt,err := time.Parse(time.RFC3339, i.CreatedAt)
+	createdAt, err := time.Parse(time.RFC3339, i.CreatedAt)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
 	//tags to string
 	tagsString := []string{}
-	for _,t := range i.Tags  {
+	for _, t := range i.Tags {
 		tagsString = append(tagsString, t.Name)
 	}
 
-	updatedAt,err := time.Parse(time.RFC3339, i.UpdatedAt)
+	updatedAt, err := time.Parse(time.RFC3339, i.UpdatedAt)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
 	entry := &entry{
 		entryHeader: &entryHeader{
-			Title:    i.Title,
-			Tags:     tagsString,
-			Date:     &createdAt,
-			Url:      i.URL,
-			Id:       i.Id,
-			Private:  i.Private,
+			Title:   i.Title,
+			Tags:    tagsString,
+			Date:    &createdAt,
+			Url:     i.URL,
+			Id:      i.Id,
+			Private: i.Private,
 		},
 		LastModified: &updatedAt,
 		Content:      i.Body,
@@ -110,7 +110,7 @@ func (b *broker) LocalPath(e *entry) string {
 	pathFormat := "2006/01/02"
 	datePath := e.Date.Format(pathFormat)
 	paths = append(paths, datePath)
-	idPath := e.Id+extension
+	idPath := e.Id + extension
 	paths = append(paths, idPath)
 
 	return filepath.Join(paths...)
@@ -159,4 +159,37 @@ func (b *broker) Store(e *entry, path string) error {
 	}
 
 	return os.Chtimes(path, *e.LastModified, *e.LastModified)
+}
+
+func (b *broker) getEntry(id string) (entry, error) {
+	client := http.Client{}
+	req, err := http.NewRequest("GET", "https://qiita.com/api/v2/items/"+id, nil)
+
+	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
+	response, err := client.Do(req)
+
+	defer response.Body.Close()
+
+	decoder := json.NewDecoder(response.Body)
+
+	var item item
+	err = decoder.Decode(&item)
+	if err != nil {
+		return nil, err
+	}
+
+	return entry
+}
+
+func (b *broker) UploadFresh(e *entry) (bool, error) {
+	re, err := b.getEntry(e.Id)
+	if err != nil {
+		return false, err
+	}
+
+	if e.LastModified.After(*re.LastModified) == false {
+		return false, nil
+	}
+
+	return true, b.PutEntry(e)
 }
