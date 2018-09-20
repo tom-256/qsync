@@ -1,59 +1,118 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
-
 )
 
 type broker struct {
-	*blogConfig
+	config *Config
 }
 
-func newBroker(bc *blogConfig) *broker {
+func newBroker(config *Config) *broker {
 	return &broker{
-		blogConfig: bc,
+		config: config,
 	}
+}
+
+type item struct {
+	RenderedBody   string `json:"rendered_body"`
+	Body           string `json:"body"`
+	Coediting      bool   `json:"coediting"`
+	CreatedAt      string `json:"created_at"`
+	Id             string `json:"id"`
+	CommentsCount  int    `json:"comments_count"`
+	Group          string `json:"group"`
+	LikesCount     int    `json:"likes_count"`
+	Private        bool   `json:"private"`
+	ReactionsCount int    `json:"reactions_count"`
+	Tags           []tag  `json:"tags"`
+	Title          string `json:"title"`
+	UpdatedAt      string `json:"updated_at"`
+	URL            string `json:"url"`
+}
+
+type tag struct {
+	Name     string   `json:"name"`
+	Versions []string `json:"versions"`
 }
 
 func (b *broker) FetchRemoteEntries() ([]*entry, error) {
+	client := http.Client{}
+	req, err := http.NewRequest("GET", "https://qiita.com/api/v2/authenticated_user/items", nil)
+
+	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
+	response, err := client.Do(req)
+
+	defer response.Body.Close()
+
+	decoder := json.NewDecoder(response.Body)
+
+	var items []*item
+	err = decoder.Decode(&items)
+	if err != nil {
+		return nil, err
+	}
+
 	entries := []*entry{}
+	for _, i := range items {
+		e, err := convertItemsToEntry(i)
+		if err != nil {
+			return nil, err
+		}
 
-	//for {
-	//	feed, err := b.Client.GetFeed(url)
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//
-	//	for _, ae := range feed.Entries {
-	//		e, err := entryFromAtom(&ae)
-	//		if err != nil {
-	//			return nil, err
-	//		}
-	//
-	//		entries = append(entries, e)
-	//	}
-	//
-	//	nextLink := feed.Links.Find("next")
-	//	if nextLink == nil {
-	//		break
-	//	}
-	//
-	//	url = nextLink.Href
-	//}
+		entries = append(entries, e)
+	}
 
-	return entries, nil
+	return entries, err
+}
+
+//APIの返り値データをentry型に変換
+func convertItemsToEntry(i *item) (*entry, error) {
+	createdAt,err := time.Parse(time.RFC3339, i.CreatedAt)
+	if err != nil {
+		return nil,err
+	}
+
+	//tags to string
+	tagsString := []string{}
+	for _,t := range i.Tags  {
+		tagsString = append(tagsString, t.Name)
+	}
+
+	updatedAt,err := time.Parse(time.RFC3339, i.UpdatedAt)
+	if err != nil {
+		return nil,err
+	}
+
+	entry := &entry{
+		entryHeader: &entryHeader{
+			Title:    i.Title,
+			Tags:     tagsString,
+			Date:     &createdAt,
+			Url:      i.URL,
+			Id:       i.Id,
+			Private:  i.Private,
+		},
+		LastModified: &updatedAt,
+		Content:      i.Body,
+	}
+
+	return entry, nil
 }
 
 func (b *broker) LocalPath(e *entry) string {
-	extension := ".md" // TODO regard re.ContentType
-	paths := []string{b.LocalRoot}
-	if b.OmitDomain == nil || !*b.OmitDomain {
-		paths = append(paths, b.RemoteRoot)
-	}
-	paths = append(paths, e.URL.Path+extension)
+	extension := ".md"
+	paths := []string{b.config.LocalRoot}
+	pathFormat := "2006/01/02"
+	datePath := e.Date.Format(pathFormat)
+	paths = append(paths, datePath)
+	idPath := e.Id+extension
+	paths = append(paths, idPath)
+
 	return filepath.Join(paths...)
 }
 
@@ -100,44 +159,4 @@ func (b *broker) Store(e *entry, path string) error {
 	}
 
 	return os.Chtimes(path, *e.LastModified, *e.LastModified)
-}
-
-func (b *broker) UploadFresh(e *entry) (bool, error) {
-	re, err := asEntry(b.Client.GetEntry(e.EditURL))
-	if err != nil {
-		return false, err
-	}
-
-	if e.LastModified.After(*re.LastModified) == false {
-		return false, nil
-	}
-
-	return true, b.PutEntry(e)
-}
-
-func (b *broker) PutEntry(e *entry) error {
-	newEntry, err := asEntry(b.Client.PutEntry(e.EditURL, e.atom()))
-	if err != nil {
-		return err
-	}
-	if e.CustomPath != "" {
-		newEntry.CustomPath = e.CustomPath
-	}
-
-	path := b.LocalPath(newEntry)
-	return b.Store(newEntry, path)
-}
-
-func (b *broker) PostEntry(e *entry) error {
-	postURL := fmt.Sprintf("https://blog.hatena.ne.jp/%s/%s/atom/entry", b.Username, b.RemoteRoot)
-	newEntry, err := asEntry(b.Client.PostEntry(postURL, e.atom()))
-	if err != nil {
-		return err
-	}
-	if e.CustomPath != "" {
-		newEntry.CustomPath = e.CustomPath
-	}
-
-	path := b.LocalPath(newEntry)
-	return b.Store(newEntry, path)
 }

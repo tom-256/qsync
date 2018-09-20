@@ -13,14 +13,8 @@ var errCommandHelp = fmt.Errorf("command help shown")
 
 func main() {
 	app := cli.NewApp()
-	app.Commands = []cli.command{
+	app.Commands = []cli.Command{
 		commandPull,
-	}
-
-	token := os.Getenv("QIITA_ACCESS_TOKEN")
-	if token == "" {
-		fmt.Println("access token is not preset, set QIITA_ACCESS_TOKEN")
-		os.Exit(1)
 	}
 
 	err := app.Run(os.Args)
@@ -32,7 +26,7 @@ func main() {
 	}
 }
 
-func loadSingleConfigFile(fname string) (*config, error) {
+func loadSingleConfigFile(fname string) (*Config, error) {
 	if _, err := os.Stat(fname); err != nil {
 		return nil, nil
 	}
@@ -44,57 +38,35 @@ func loadSingleConfigFile(fname string) (*config, error) {
 	return loadConfig(f)
 }
 
-func loadConfiguration() (*config, error) {
-	pwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	return loadConfigFiles(pwd)
-}
-
-func loadConfigFiles(pwd string) (*config, error) {
-	conf, err := loadSingleConfigFile(filepath.Join(pwd, "blogsync.yaml"))
-	if err != nil {
-		return nil, err
-	}
-
+func loadConfiguration() (*Config, error) {
 	home, err := homedir.Dir()
-	if err != nil && conf == nil {
+	if err != nil {
 		return nil, err
 	}
-	if err == nil {
-		homeConf, err := loadSingleConfigFile(filepath.Join(home, ".config", "blogsync", "config.yaml"))
-		if err != nil {
-			return nil, err
-		}
-		conf = mergeConfig(conf, homeConf)
+
+	conf, err := loadSingleConfigFile(filepath.Join(home, ".config", "qsync", "config.yaml"))
+	if err != nil {
+		return nil, err
 	}
+
 	if conf == nil {
 		return nil, fmt.Errorf("no config files found")
 	}
+
 	return conf, nil
 }
 
-var commandPull = cli.commnand{
+var commandPull = cli.Command{
 	Name:  "pull",
 	Usage: "pull entries from remote",
 	Action: func(c *cli.Context) error {
-		blog := c.Args().First()
-		if blog == "" {
-			cli.ShowCommandHelp(c, "pull")
-			return errCommandHelp
-		}
 
 		conf, err := loadConfiguration()
 		if err != nil {
 			return err
 		}
-		blogConfig := conf.Get(blog)
-		if blogConfig == nil {
-			return fmt.Errorf("blog not found: %s", blog)
-		}
 
-		b := newBroker(blogConfig)
+		b := newBroker(conf)
 		remoteEntries, err := b.FetchRemoteEntries()
 		if err != nil {
 			return err
