@@ -2,68 +2,30 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
-	"net/url"
-	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
+	"io"
+	"io/ioutil"
+	"os"
 )
 
-const timeFormat = "2006-01-02T15:04:05-07:00"
-
-type entryURL struct {
-	*url.URL
-}
-
 type entryHeader struct {
-	Title      string     `yaml:"Title"`
-	Category   []string   `yaml:"Category,omitempty"`
-	Date       *time.Time `yaml:"Date"`
-	URL        *entryURL  `yaml:"URL"`
-	EditURL    string     `yaml:"EditURL"`
-	IsDraft    bool       `yaml:"Draft,omitempty"`
-	CustomPath string     `yaml:"CustomPath,omitempty"`
+	Title   string     `yaml:"Title"`
+	Tags    []string   `yaml:"Tags"`
+	Date    *time.Time `yaml:"Date"`
+	Url     string     `yaml:"Url"`
+	Id      string     `yaml:"Id"`
+	Private bool       `yaml:"private"`
 }
 
-func (eu *entryURL) MarshalYAML() (interface{}, error) {
-	return eu.String(), nil
-}
-
-func (eu *entryURL) UnmarshalYAML(unmarshal func(v interface{}) error) error {
-	var s string
-	err := unmarshal(&s)
-	if err != nil {
-		return err
-	}
-	u, err := url.Parse(s)
-	if err != nil {
-		return err
-	}
-	eu.URL = u
-	return nil
-}
-
-func (eh *entryHeader) remoteRoot() (string, error) {
-	// EditURL: https://blog.hatena.ne.jp/Songmu/songmu.hateblog.jp/atom/entry/...
-	// "songmu.hateblog.jp" is remote root in above case.
-	paths := strings.Split(eh.EditURL, "/")
-	if len(paths) < 5 {
-		return "", fmt.Errorf("failed to get remoteRoot form EditURL: %s", eh.EditURL)
-	}
-	return paths[4], nil
-}
-
-// Entry is an entry stored on remote blog providers
 type entry struct {
 	*entryHeader
 	LastModified *time.Time
 	Content      string
-	ContentType  string
 }
 
 func (e *entry) HeaderString() string {
