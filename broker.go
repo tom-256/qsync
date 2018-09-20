@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"fmt"
+	"bytes"
 )
 
 type broker struct {
@@ -16,23 +18,6 @@ func newBroker(config *Config) *broker {
 	return &broker{
 		config: config,
 	}
-}
-
-type item struct {
-	RenderedBody   string `json:"rendered_body"`
-	Body           string `json:"body"`
-	Coediting      bool   `json:"coediting"`
-	CreatedAt      string `json:"created_at"`
-	Id             string `json:"id"`
-	CommentsCount  int    `json:"comments_count"`
-	Group          string `json:"group"`
-	LikesCount     int    `json:"likes_count"`
-	Private        bool   `json:"private"`
-	ReactionsCount int    `json:"reactions_count"`
-	Tags           []tag  `json:"tags"`
-	Title          string `json:"title"`
-	UpdatedAt      string `json:"updated_at"`
-	URL            string `json:"url"`
 }
 
 type tag struct {
@@ -57,12 +42,9 @@ func (b *broker) FetchRemoteEntries() ([]*entry, error) {
 		return nil, err
 	}
 
-	entries := []*entry{}
+	var entries []*entry
 	for _, i := range items {
-		e, err := convertItemsToEntry(i)
-		if err != nil {
-			return nil, err
-		}
+		e := i.ConvertToEntry()
 
 		entries = append(entries, e)
 	}
@@ -70,38 +52,26 @@ func (b *broker) FetchRemoteEntries() ([]*entry, error) {
 	return entries, err
 }
 
-//APIの返り値データをentry型に変換
-func convertItemsToEntry(i *item) (*entry, error) {
-	createdAt,err := time.Parse(time.RFC3339, i.CreatedAt)
+func (b *broker) FetchRemoteEntry(id string) (*entry, error) {
+	client := http.Client{}
+	req, err := http.NewRequest("GET", "https://qiita.com/api/v2/items/"+id, nil)
+
+	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
+	response, err := client.Do(req)
+
+	defer response.Body.Close()
+
+	decoder := json.NewDecoder(response.Body)
+
+	var item item
+	err = decoder.Decode(&item)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
-	//tags to string
-	tagsString := []string{}
-	for _,t := range i.Tags  {
-		tagsString = append(tagsString, t.Name)
-	}
+	entry := item.ConvertToEntry()
 
-	updatedAt,err := time.Parse(time.RFC3339, i.UpdatedAt)
-	if err != nil {
-		return nil,err
-	}
-
-	entry := &entry{
-		entryHeader: &entryHeader{
-			Title:    i.Title,
-			Tags:     tagsString,
-			Date:     &createdAt,
-			Url:      i.URL,
-			Id:       i.Id,
-			Private:  i.Private,
-		},
-		LastModified: &updatedAt,
-		Content:      i.Body,
-	}
-
-	return entry, nil
+	return entry, err
 }
 
 func (b *broker) LocalPath(e *entry) string {
@@ -110,7 +80,7 @@ func (b *broker) LocalPath(e *entry) string {
 	pathFormat := "2006/01/02"
 	datePath := e.Date.Format(pathFormat)
 	paths = append(paths, datePath)
-	idPath := e.Id+extension
+	idPath := e.Id + extension
 	paths = append(paths, idPath)
 
 	return filepath.Join(paths...)
@@ -159,4 +129,54 @@ func (b *broker) Store(e *entry, path string) error {
 	}
 
 	return os.Chtimes(path, *e.LastModified, *e.LastModified)
+}
+
+func (b *broker) PutEntry(e *entry) error {
+	i := e.ConvertToItem()
+	jsonBytes, err := json.Marshal(i)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	client := http.Client{}
+	req, err := http.NewRequest("PATCH", "https://qiita.com/api/v2/items/"+e.Id, bytes.NewBuffer(jsonBytes))
+
+	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := client.Do(req)
+
+	defer response.Body.Close()
+
+	decoder := json.NewDecoder(response.Body)
+
+	var responseItem item
+	err = decoder.Decode(&responseItem)
+	if err != nil {
+		return err
+	}
+
+	newEntry := responseItem.ConvertToEntry()
+
+	path := b.LocalPath(newEntry)
+	_, err = b.StoreFresh(newEntry, path)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+
+func (b *broker) UploadFresh(e *entry) (bool, error) {
+	re, err := b.FetchRemoteEntry(e.Id)
+	if err != nil {
+		return false, err
+	}
+
+	if e.LastModified.After(*re.LastModified) == false {
+		return false, nil
+	}
+
+	return true, b.PutEntry(e)
 }
