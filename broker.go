@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 	"fmt"
+	"strings"
 )
 
 type broker struct {
@@ -88,16 +89,13 @@ func (b *broker) FetchRemoteEntry(id string) (*entry, error) {
 		return nil, err
 	}
 
-	entry,err := convertItemToEntry(&item)
+	entry, err := convertItemToEntry(&item)
 
 	return entry, err
 }
 
 //APIの返り値データをentry型に変換
 func convertItemToEntry(i *item) (*entry, error) {
-	fmt.Println(i.CreatedAt)
-	fmt.Println(i.CreatedAt)
-	fmt.Println(i.UpdatedAt)
 
 	createdAt, err := time.Parse(time.RFC3339, i.CreatedAt)
 	if err != nil {
@@ -107,7 +105,15 @@ func convertItemToEntry(i *item) (*entry, error) {
 	//tags to string
 	tagsString := []string{}
 	for _, t := range i.Tags {
-		tagsString = append(tagsString, t.Name)
+		versions := []string{}
+		for _, v := range t.Versions {
+			versions = append(versions, v)
+		}
+		if len(versions) == 0 {
+			tagsString = append(tagsString, t.Name)
+		} else {
+			tagsString = append(tagsString, t.Name+":"+strings.Join(versions, ","))
+		}
 	}
 
 	updatedAt, err := time.Parse(time.RFC3339, i.UpdatedAt)
@@ -188,11 +194,11 @@ func (b *broker) Store(e *entry, path string) error {
 	return os.Chtimes(path, *e.LastModified, *e.LastModified)
 }
 
-func (b *broker) PutEntry(e entry) error {
+func (b *broker) PutEntry(e *entry) error {
 	//convertEntryToJSON
-	hoge := convertEntryToJSON(e)
+	//タグを正しく扱えるようにする
+	//jsonBytes, err := json.Marshal(e)
 	//convertJsontoBinaly
-
 
 	//putEntry
 	client := http.Client{}
@@ -218,8 +224,8 @@ func (b *broker) PutEntry(e entry) error {
 	fmt.Println("item.Body")
 	fmt.Println(item.Body)
 
-	ne,err := convertItemToEntry(&item)
-	if err != nil{
+	ne, err := convertItemToEntry(&item)
+	if err != nil {
 		return err
 	}
 
@@ -245,5 +251,5 @@ func (b *broker) UploadFresh(e *entry) (bool, error) {
 	}
 	fmt.Println("putentry")
 
-	return true, b.PutEntry(e.Id)
+	return true, b.PutEntry(e)
 }
