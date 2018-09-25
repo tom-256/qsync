@@ -15,6 +15,7 @@ func main() {
 	app := cli.NewApp()
 	app.Commands = []cli.Command{
 		commandPull,
+		commandPush,
 	}
 
 	err := app.Run(os.Args)
@@ -93,6 +94,11 @@ var commandPush = cli.Command{
 			return errCommandHelp
 		}
 
+		conf, err := loadConfiguration()
+		if err != nil {
+			return err
+		}
+
 		f, err := os.Open(path)
 		if err != nil {
 			return err
@@ -104,19 +110,10 @@ var commandPush = cli.Command{
 			return err
 		}
 
-		remoteRoot, err := entry.remoteRoot()
-		if err != nil {
-			return err
-		}
-
-		conf, err := loadConfiguration()
-		if err != nil {
-			return err
-		}
-
-		//https://qiita.com/api/v2/docs#patch-apiv2itemsitem_id
 		_, err = newBroker(conf).UploadFresh(entry)
-
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	},
 }

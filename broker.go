@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"fmt"
 )
 
 type broker struct {
@@ -59,7 +60,7 @@ func (b *broker) FetchRemoteEntries() ([]*entry, error) {
 
 	entries := []*entry{}
 	for _, i := range items {
-		e, err := convertItemsToEntry(i)
+		e, err := convertItemToEntry(i)
 		if err != nil {
 			return nil, err
 		}
@@ -70,8 +71,34 @@ func (b *broker) FetchRemoteEntries() ([]*entry, error) {
 	return entries, err
 }
 
+func (b *broker) FetchRemoteEntry(id string) (*entry, error) {
+	client := http.Client{}
+	req, err := http.NewRequest("GET", "https://qiita.com/api/v2/items/"+id, nil)
+
+	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
+	response, err := client.Do(req)
+
+	defer response.Body.Close()
+
+	decoder := json.NewDecoder(response.Body)
+
+	var item item
+	err = decoder.Decode(&item)
+	if err != nil {
+		return nil, err
+	}
+
+	entry,err := convertItemToEntry(&item)
+
+	return entry, err
+}
+
 //APIの返り値データをentry型に変換
-func convertItemsToEntry(i *item) (*entry, error) {
+func convertItemToEntry(i *item) (*entry, error) {
+	fmt.Println(i.CreatedAt)
+	fmt.Println(i.CreatedAt)
+	fmt.Println(i.UpdatedAt)
+
 	createdAt, err := time.Parse(time.RFC3339, i.CreatedAt)
 	if err != nil {
 		return nil, err
@@ -161,12 +188,22 @@ func (b *broker) Store(e *entry, path string) error {
 	return os.Chtimes(path, *e.LastModified, *e.LastModified)
 }
 
-func (b *broker) getEntry(id string) (entry, error) {
+func (b *broker) PutEntry(e entry) error {
+	//convertEntryToJSON
+	hoge := convertEntryToJSON(e)
+	//convertJsontoBinaly
+
+
+	//putEntry
 	client := http.Client{}
-	req, err := http.NewRequest("GET", "https://qiita.com/api/v2/items/"+id, nil)
+	req, err := http.NewRequest("PATCH", "https://qiita.com/api/v2/items/"+e.Id, nil)
 
 	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
 	response, err := client.Do(req)
+
+	fmt.Println("response.Body")
+	fmt.Println(response.Status)
+	fmt.Println(response.Body)
 
 	defer response.Body.Close()
 
@@ -175,21 +212,38 @@ func (b *broker) getEntry(id string) (entry, error) {
 	var item item
 	err = decoder.Decode(&item)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return entry
+	fmt.Println("item.Body")
+	fmt.Println(item.Body)
+
+	ne,err := convertItemToEntry(&item)
+	if err != nil{
+		return err
+	}
+
+	//saveResponseAsEntry
+	path := b.LocalPath(ne)
+	_, err = b.StoreFresh(ne, path)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (b *broker) UploadFresh(e *entry) (bool, error) {
-	re, err := b.getEntry(e.Id)
+	fmt.Println("uploadfresh")
+	re, err := b.FetchRemoteEntry(e.Id)
 	if err != nil {
 		return false, err
 	}
+	fmt.Println(re.Id)
 
 	if e.LastModified.After(*re.LastModified) == false {
 		return false, nil
 	}
+	fmt.Println("putentry")
 
-	return true, b.PutEntry(e)
+	return true, b.PutEntry(e.Id)
 }
