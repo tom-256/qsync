@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 	"fmt"
-	"strings"
+	"bytes"
 )
 
 type broker struct {
@@ -21,20 +21,15 @@ func newBroker(config *Config) *broker {
 }
 
 type item struct {
-	RenderedBody   string `json:"rendered_body"`
-	Body           string `json:"body"`
-	Coediting      bool   `json:"coediting"`
-	CreatedAt      string `json:"created_at"`
-	Id             string `json:"id"`
-	CommentsCount  int    `json:"comments_count"`
-	Group          string `json:"group"`
-	LikesCount     int    `json:"likes_count"`
-	Private        bool   `json:"private"`
-	ReactionsCount int    `json:"reactions_count"`
-	Tags           []tag  `json:"tags"`
-	Title          string `json:"title"`
-	UpdatedAt      string `json:"updated_at"`
-	URL            string `json:"url"`
+	Body           string    `json:"body"`
+	Coediting      bool      `json:"coediting"`
+	CreatedAt      time.Time `json:"created_at"`
+	Id             string    `json:"id"`
+	Private        bool      `json:"private"`
+	Tags           []tag     `json:"tags"`
+	Title          string    `json:"title"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	URL            string    `json:"url"`
 }
 
 type tag struct {
@@ -97,44 +92,34 @@ func (b *broker) FetchRemoteEntry(id string) (*entry, error) {
 //APIの返り値データをentry型に変換
 func convertItemToEntry(i *item) (*entry, error) {
 
-	createdAt, err := time.Parse(time.RFC3339, i.CreatedAt)
-	if err != nil {
-		return nil, err
-	}
-
-	//tags to string
-	tagsString := []string{}
-	for _, t := range i.Tags {
-		versions := []string{}
-		for _, v := range t.Versions {
-			versions = append(versions, v)
-		}
-		if len(versions) == 0 {
-			tagsString = append(tagsString, t.Name)
-		} else {
-			tagsString = append(tagsString, t.Name+":"+strings.Join(versions, ","))
-		}
-	}
-
-	updatedAt, err := time.Parse(time.RFC3339, i.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-
 	entry := &entry{
-		entryHeader: &entryHeader{
+		header: &header{
 			Title:   i.Title,
-			Tags:    tagsString,
-			Date:    &createdAt,
+			Tags:    i.Tags,
+			Date:    &i.CreatedAt,
 			Url:     i.URL,
 			Id:      i.Id,
 			Private: i.Private,
 		},
-		LastModified: &updatedAt,
+		LastModified: &i.UpdatedAt,
 		Content:      i.Body,
 	}
 
 	return entry, nil
+}
+
+func convertEntryToItem(e *entry) (*item, error){
+	item := &item{
+		Body:e.Content,
+		CreatedAt:*e.Date,
+		Id:e.Id,
+		Private:e.Private,
+		Tags:e.Tags,
+		Title:e.Title,
+		UpdatedAt:*e.LastModified,
+		URL:e.Url,
+	}
+	return item,nil
 }
 
 func (b *broker) LocalPath(e *entry) string {
@@ -195,41 +180,36 @@ func (b *broker) Store(e *entry, path string) error {
 }
 
 func (b *broker) PutEntry(e *entry) error {
-	//convertEntryToJSON
-	//タグを正しく扱えるようにする
-	//jsonBytes, err := json.Marshal(e)
-	//convertJsontoBinaly
+	i,err := convertEntryToItem(e)
+	jsonBytes, err := json.Marshal(i)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
 
-	//putEntry
 	client := http.Client{}
-	req, err := http.NewRequest("PATCH", "https://qiita.com/api/v2/items/"+e.Id, nil)
+	req, err := http.NewRequest("PATCH", "https://qiita.com/api/v2/items/"+e.Id, bytes.NewBuffer(jsonBytes))
 
 	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
-	response, err := client.Do(req)
+	req.Header.Set("Content-Type", "application/json")
 
-	fmt.Println("response.Body")
-	fmt.Println(response.Status)
-	fmt.Println(response.Body)
+	response, err := client.Do(req)
 
 	defer response.Body.Close()
 
 	decoder := json.NewDecoder(response.Body)
 
-	var item item
-	err = decoder.Decode(&item)
+	var responseItem item
+	err = decoder.Decode(&responseItem)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("item.Body")
-	fmt.Println(item.Body)
-
-	ne, err := convertItemToEntry(&item)
+	ne, err := convertItemToEntry(&responseItem)
 	if err != nil {
 		return err
 	}
 
-	//saveResponseAsEntry
 	path := b.LocalPath(ne)
 	_, err = b.StoreFresh(ne, path)
 	if err != nil {
@@ -238,18 +218,16 @@ func (b *broker) PutEntry(e *entry) error {
 	return nil
 }
 
+
 func (b *broker) UploadFresh(e *entry) (bool, error) {
-	fmt.Println("uploadfresh")
 	re, err := b.FetchRemoteEntry(e.Id)
 	if err != nil {
 		return false, err
 	}
-	fmt.Println(re.Id)
 
 	if e.LastModified.After(*re.LastModified) == false {
 		return false, nil
 	}
-	fmt.Println("putentry")
 
 	return true, b.PutEntry(e)
 }

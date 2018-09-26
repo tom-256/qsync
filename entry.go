@@ -13,9 +13,9 @@ import (
 	"os"
 )
 
-type entryHeader struct {
+type header struct {
 	Title   string     `yaml:"Title"`
-	Tags    []string   `yaml:"Tags"`
+	Tags    []tag      `yaml:"Tags"`
 	Date    *time.Time `yaml:"Date"`
 	Url     string     `yaml:"Url"`
 	Id      string     `yaml:"Id"`
@@ -23,13 +23,13 @@ type entryHeader struct {
 }
 
 type entry struct {
-	*entryHeader
+	*header
 	LastModified *time.Time
 	Content      string
 }
 
 func (e *entry) HeaderString() string {
-	d, err := yaml.Marshal(e.entryHeader)
+	d, err := yaml.Marshal(e.header)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
@@ -58,7 +58,7 @@ func entryFromReader(source io.Reader) (*entry, error) {
 	}
 	content := string(b)
 	isNew := !strings.HasPrefix(content, "---\n")
-	eh := entryHeader{}
+	eh := header{}
 	if !isNew {
 		c := delimReg.Split(content, 3)
 		if len(c) != 3 || c[0] != "" {
@@ -72,8 +72,8 @@ func entryFromReader(source io.Reader) (*entry, error) {
 		content = c[2]
 	}
 	entry := &entry{
-		entryHeader: &eh,
-		Content:     content,
+		header:  &eh,
+		Content: content,
 	}
 
 	if f, ok := source.(*os.File); ok {
