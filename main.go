@@ -15,6 +15,7 @@ func main() {
 	app := cli.NewApp()
 	app.Commands = []cli.Command{
 		commandPull,
+		commandPush,
 	}
 
 	err := app.Run(os.Args)
@@ -78,6 +79,40 @@ var commandPull = cli.Command{
 			if err != nil {
 				return err
 			}
+		}
+		return nil
+	},
+}
+
+var commandPush = cli.Command{
+	Name:  "push",
+	Usage: "Push local entries to remote",
+	Action: func(c *cli.Context) error {
+		path := c.Args().First()
+		if path == "" {
+			cli.ShowCommandHelp(c, "push")
+			return errCommandHelp
+		}
+
+		conf, err := loadConfiguration()
+		if err != nil {
+			return err
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		entry, err := entryFromReader(f)
+		if err != nil {
+			return err
+		}
+
+		_, err = newBroker(conf).UploadFresh(entry)
+		if err != nil {
+			return err
 		}
 		return nil
 	},
