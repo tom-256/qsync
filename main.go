@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
 	"github.com/urfave/cli"
 	"github.com/mitchellh/go-homedir"
 )
@@ -16,6 +15,7 @@ func main() {
 	app.Commands = []cli.Command{
 		commandPull,
 		commandPush,
+		commandPost,
 	}
 
 	err := app.Run(os.Args)
@@ -111,6 +111,28 @@ var commandPush = cli.Command{
 		}
 
 		_, err = newBroker(conf).UploadFresh(entry)
+		if err != nil {
+			return err
+		}
+		return nil
+	},
+}
+
+var commandPost = cli.Command{
+	Name:  "post",
+	Usage: "Post a new entry to remote",
+	Action: func(c *cli.Context) error {
+		if c.Args().Present() {
+			cli.ShowCommandHelp(c, "post")
+			return errCommandHelp
+		}
+
+		conf, err := loadConfiguration()
+		if err != nil {
+			return err
+		}
+
+		err = newBroker(conf).PostEntry()
 		if err != nil {
 			return err
 		}

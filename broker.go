@@ -8,6 +8,9 @@ import (
 	"time"
 	"fmt"
 	"bytes"
+	"bufio"
+	"strings"
+	"errors"
 )
 
 type broker struct {
@@ -18,11 +21,6 @@ func newBroker(config *Config) *broker {
 	return &broker{
 		config: config,
 	}
-}
-
-type tag struct {
-	Name     string   `json:"name"`
-	Versions []string `json:"versions"`
 }
 
 func (b *broker) FetchRemoteEntries() ([]*entry, error) {
@@ -167,7 +165,6 @@ func (b *broker) PutEntry(e *entry) error {
 	return nil
 }
 
-
 func (b *broker) UploadFresh(e *entry) (bool, error) {
 	re, err := b.FetchRemoteEntry(e.Id)
 	if err != nil {
@@ -179,4 +176,79 @@ func (b *broker) UploadFresh(e *entry) (bool, error) {
 	}
 
 	return true, b.PutEntry(e)
+}
+
+func convetInputToTags(s string) ([]tag, error) {
+	if len(s) == 0 {
+		return nil, errors.New("一つ以上のタグをつけてください")
+	}
+	tagstrings := strings.Split(s, " ")
+
+	var tags []tag
+	for _, tagstring := range tagstrings {
+		t := strings.Split(tagstring, ":")
+		if len(t) > 2 {
+			return nil, errors.New("タグの形式が不正です\nsee $qsync help")
+		}
+		tag := tag{Name: t[0], Versions: make([]string, 0)}
+		if len(t) > 1 {
+			tag.Versions = strings.Split(t[1], ",")
+		}
+		tags = append(tags, tag)
+	}
+	return tags, nil
+}
+
+func (b *broker) PostEntry() error {
+	scanner := bufio.NewScanner(os.Stdin)
+	fmt.Printf("title:")
+	scanner.Scan()
+	title := scanner.Text()
+	if len(title) == 0 {
+		return errors.New("タイトルは必須項目です(255文字以下)")
+	}
+	if len(title) > 255 {
+		return errors.New("タイトルは255文字以下です")
+	}
+
+	fmt.Printf("tags:")
+	scanner.Scan()
+	t := scanner.Text()
+	tags, err := convetInputToTags(t)
+	if err != nil {
+		return err
+	}
+
+	i := item{Title: title, Tags: tags, Private: true, Body: "#WIP"}
+	jsonBytes, err := json.Marshal(i)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	client := http.Client{}
+	req, err := http.NewRequest("POST", "https://qiita.com/api/v2/items", bytes.NewBuffer(jsonBytes))
+
+	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := client.Do(req)
+
+	defer response.Body.Close()
+
+	decoder := json.NewDecoder(response.Body)
+
+	var responseItem item
+	err = decoder.Decode(&responseItem)
+	if err != nil {
+		return err
+	}
+
+	newEntry := responseItem.ConvertToEntry()
+	if err != nil {
+		return err
+	}
+
+	path := b.LocalPath(newEntry)
+	return b.Store(newEntry, path)
 }
