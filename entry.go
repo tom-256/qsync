@@ -88,16 +88,26 @@ func entryFromReader(source io.Reader) (*entry, error) {
 	return entry, nil
 }
 
-func (e *entry) ConvertToItem() *item{
+func (e *entry) ConvertToItem() *item {
 	item := &item{
-		Body:e.Content,
-		CreatedAt:*e.Date,
-		Id:e.Id,
-		Private:e.Private,
-		Tags:e.Tags,
-		Title:e.Title,
-		UpdatedAt:*e.LastModified,
-		URL:e.Url,
+		Body:      e.Content,
+		CreatedAt: e.Date,
+		Id:        e.Id,
+		Private:   e.Private,
+		Tags:      e.Tags,
+		Title:     e.Title,
+		UpdatedAt: e.LastModified,
+		URL:       e.Url,
+	}
+	return item
+}
+
+func (e *entry) ConvertToPostItem() *item {
+	item := &item{
+		Body:    e.Content,
+		Private: e.Private,
+		Tags:    e.Tags,
+		Title:   e.Title,
 	}
 	return item
 }

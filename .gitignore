@@ -71,3 +71,11 @@ fabric.properties
 
 # Editor-based Rest Client
 .idea/httpRequests
+
+/dep
+/testdep
+/dep.exe
+/licenseok
+/profile.out
+/coverage.txt
+release/
