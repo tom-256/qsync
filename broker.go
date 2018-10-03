@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -11,6 +10,8 @@ import (
 	"bufio"
 	"strings"
 	"errors"
+	"log"
+	"io/ioutil"
 )
 
 type broker struct {
@@ -24,18 +25,10 @@ func newBroker(config *Config) *broker {
 }
 
 func (b *broker) FetchRemoteEntries() ([]*entry, error) {
-	client := http.Client{}
-	req, err := http.NewRequest("GET", "https://qiita.com/api/v2/authenticated_user/items", nil)
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
+	client, err := NewClient("https://qiita.com/api/v2", b.config.APIKey, logger)
 
-	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
-	response, err := client.Do(req)
-
-	defer response.Body.Close()
-
-	decoder := json.NewDecoder(response.Body)
-
-	var items []*item
-	err = decoder.Decode(&items)
+	items, err := client.GetItems()
 	if err != nil {
 		return nil, err
 	}
@@ -51,22 +44,13 @@ func (b *broker) FetchRemoteEntries() ([]*entry, error) {
 }
 
 func (b *broker) FetchRemoteEntry(id string) (*entry, error) {
-	client := http.Client{}
-	req, err := http.NewRequest("GET", "https://qiita.com/api/v2/items/"+id, nil)
 
-	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
-	response, err := client.Do(req)
-
-	defer response.Body.Close()
-
-	decoder := json.NewDecoder(response.Body)
-
-	var item item
-	err = decoder.Decode(&item)
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
+	client, err := NewClient("https://qiita.com/api/v2", b.config.APIKey, logger)
+	item, err := client.GetItem(id)
 	if err != nil {
 		return nil, err
 	}
-
 	entry := item.ConvertToEntry()
 
 	return entry, err
@@ -137,25 +121,15 @@ func (b *broker) PutEntry(e *entry) error {
 		return err
 	}
 
-	client := http.Client{}
-	req, err := http.NewRequest("PATCH", "https://qiita.com/api/v2/items/"+e.Id, bytes.NewBuffer(jsonBytes))
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
+	client, err := NewClient("https://qiita.com/api/v2", b.config.APIKey, logger)
 
-	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	response, err := client.Do(req)
-
-	defer response.Body.Close()
-
-	decoder := json.NewDecoder(response.Body)
-
-	var responseItem item
-	err = decoder.Decode(&responseItem)
+	item, err := client.PatchItem(e.Id, bytes.NewBuffer(jsonBytes))
 	if err != nil {
 		return err
 	}
 
-	newEntry := responseItem.ConvertToEntry()
+	newEntry := item.ConvertToEntry()
 
 	path := b.LocalPath(newEntry)
 	_, err = b.StoreFresh(newEntry, path)
@@ -222,33 +196,23 @@ func (b *broker) PostEntry() error {
 	i := item{Title: title, Tags: tags, Private: true, Body: "#WIP"}
 	jsonBytes, err := json.Marshal(i)
 	if err != nil {
-		fmt.Println(err)
 		return err
 	}
 
-	client := http.Client{}
-	req, err := http.NewRequest("POST", "https://qiita.com/api/v2/items", bytes.NewBuffer(jsonBytes))
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
+	client, err := NewClient("https://qiita.com/api/v2", b.config.APIKey, logger)
 
-	req.Header.Add("Authorization", " Bearer "+b.config.APIKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	response, err := client.Do(req)
-
-	defer response.Body.Close()
-
-	decoder := json.NewDecoder(response.Body)
-
-	var responseItem item
-	err = decoder.Decode(&responseItem)
+	item, err := client.PostItem(bytes.NewBuffer(jsonBytes))
 	if err != nil {
 		return err
 	}
 
-	newEntry := responseItem.ConvertToEntry()
+	newEntry := item.ConvertToEntry()
 	if err != nil {
 		return err
 	}
 
 	path := b.LocalPath(newEntry)
 	return b.Store(newEntry, path)
+	return nil
 }
