@@ -13,15 +13,15 @@ import (
 )
 
 type Client struct {
-	URL        *url.URL
-	HTTPClient *http.Client
-	ApiKey     string
-	Logger     *log.Logger
+	URL         *url.URL
+	HTTPClient  *http.Client
+	AccessToken string
+	Logger      *log.Logger
 }
 
-func NewClient(urlStr, apiKey string, logger *log.Logger) (*Client, error) {
-	if len(apiKey) == 0 {
-		return nil, errors.New("missing api key")
+func NewClient(urlStr, accessToken string, logger *log.Logger) (*Client, error) {
+	if len(accessToken) == 0 {
+		return nil, errors.New("missing access token")
 	}
 	parsedURL, err := url.ParseRequestURI(urlStr)
 	if err != nil {
@@ -33,10 +33,10 @@ func NewClient(urlStr, apiKey string, logger *log.Logger) (*Client, error) {
 	}
 	client := &http.Client{}
 	c := &Client{
-		URL:        parsedURL,
-		HTTPClient: client,
-		ApiKey:     apiKey,
-		Logger:     logger,
+		URL:         parsedURL,
+		HTTPClient:  client,
+		AccessToken: accessToken,
+		Logger:      logger,
 	}
 	return c, nil
 }
@@ -50,7 +50,7 @@ func (c *Client) newRequest(method, spath string, body io.Reader) (*http.Request
 		return nil, err
 	}
 
-	req.Header.Add("Authorization", " Bearer "+c.ApiKey)
+	req.Header.Add("Authorization", " Bearer "+c.AccessToken)
 	req.Header.Set("Content-Type", "application/json")
 
 	return req, nil
@@ -63,7 +63,7 @@ func decodeBody(resp *http.Response, out interface{}) error {
 }
 
 func (c *Client) GetItems() ([]*item, error) {
-	spath := "/items"
+	spath := "/authenticated_user/items"
 	req, err := c.newRequest("GET", spath, nil)
 	if err != nil {
 		return nil, err

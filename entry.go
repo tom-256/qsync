@@ -17,9 +17,9 @@ type header struct {
 	Title   string     `yaml:"Title"`
 	Tags    []tag      `yaml:"Tags"`
 	Date    *time.Time `yaml:"Date"`
-	Url     string     `yaml:"Url"`
-	Id      string     `yaml:"Id"`
-	Private bool       `yaml:"private"`
+	URL     string     `yaml:"URL"`
+	ID      string     `yaml:"ID"`
+	Private bool       `yaml:"Private"`
 }
 
 type entry struct {
@@ -92,12 +92,12 @@ func (e *entry) ConvertToItem() *item {
 	item := &item{
 		Body:      e.Content,
 		CreatedAt: e.Date,
-		Id:        e.Id,
+		ID:        e.ID,
 		Private:   e.Private,
 		Tags:      e.Tags,
 		Title:     e.Title,
 		UpdatedAt: e.LastModified,
-		URL:       e.Url,
+		URL:       e.URL,
 	}
 	return item
 }

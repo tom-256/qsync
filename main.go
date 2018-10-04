@@ -123,7 +123,10 @@ var commandPost = cli.Command{
 	Usage: "Post a new entry to remote",
 	Action: func(c *cli.Context) error {
 		if c.Args().Present() {
-			cli.ShowCommandHelp(c, "post")
+			err := cli.ShowCommandHelp(c, "post")
+			if err != nil {
+				return err
+			}
 			return errCommandHelp
 		}
 

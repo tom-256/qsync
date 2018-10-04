@@ -29,7 +29,7 @@ https://qiita.com/settings/applications
 以下のようなyamlを書きます。
 ```
 user_name: Qiitaのユーザ名
-api_key: アクセストークン
+access_token: アクセストークン
 local_root: 記事を保存するパス
 ```
 ### 投稿一覧の取得

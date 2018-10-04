@@ -8,9 +8,9 @@ import (
 )
 
 type Config struct {
-	UserName  string `yaml:"user_name"`
-	APIKey    string `yaml:"api_key"`
-	LocalRoot string `yaml:"local_root"`
+	UserName    string `yaml:"user_name"`
+	AccessToken string `yaml:"access_token"`
+	LocalRoot   string `yaml:"local_root"`
 }
 
 func loadConfig(r io.Reader) (*Config, error) {

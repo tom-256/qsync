@@ -26,7 +26,7 @@ func newBroker(config *Config) *broker {
 
 func (b *broker) FetchRemoteEntries() ([]*entry, error) {
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
-	client, err := NewClient("https://qiita.com/api/v2", b.config.APIKey, logger)
+	client, err := NewClient("https://qiita.com/api/v2", b.config.AccessToken, logger)
 
 	items, err := client.GetItems()
 	if err != nil {
@@ -46,7 +46,7 @@ func (b *broker) FetchRemoteEntries() ([]*entry, error) {
 func (b *broker) FetchRemoteEntry(id string) (*entry, error) {
 
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
-	client, err := NewClient("https://qiita.com/api/v2", b.config.APIKey, logger)
+	client, err := NewClient("https://qiita.com/api/v2", b.config.AccessToken, logger)
 	item, err := client.GetItem(id)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (b *broker) LocalPath(e *entry) string {
 	pathFormat := "2006/01/02"
 	datePath := e.Date.Format(pathFormat)
 	paths = append(paths, datePath)
-	idPath := e.Id + extension
+	idPath := e.ID + extension
 	paths = append(paths, idPath)
 
 	return filepath.Join(paths...)
@@ -122,9 +122,9 @@ func (b *broker) PutEntry(e *entry) error {
 	}
 
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
-	client, err := NewClient("https://qiita.com/api/v2", b.config.APIKey, logger)
+	client, err := NewClient("https://qiita.com/api/v2", b.config.AccessToken, logger)
 
-	item, err := client.PatchItem(e.Id, bytes.NewBuffer(jsonBytes))
+	item, err := client.PatchItem(e.ID, bytes.NewBuffer(jsonBytes))
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (b *broker) PutEntry(e *entry) error {
 }
 
 func (b *broker) UploadFresh(e *entry) (bool, error) {
-	re, err := b.FetchRemoteEntry(e.Id)
+	re, err := b.FetchRemoteEntry(e.ID)
 	if err != nil {
 		return false, err
 	}
@@ -200,7 +200,7 @@ func (b *broker) PostEntry() error {
 	}
 
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
-	client, err := NewClient("https://qiita.com/api/v2", b.config.APIKey, logger)
+	client, err := NewClient("https://qiita.com/api/v2", b.config.AccessToken, logger)
 
 	item, err := client.PostItem(bytes.NewBuffer(jsonBytes))
 	if err != nil {
@@ -214,5 +214,4 @@ func (b *broker) PostEntry() error {
 
 	path := b.LocalPath(newEntry)
 	return b.Store(newEntry, path)
-	return nil
 }
