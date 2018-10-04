@@ -7,7 +7,7 @@ import (
 type item struct {
 	Body      string     `json:"body"`
 	CreatedAt *time.Time `json:"created_at,omitempty"`
-	Id        string     `json:"id,omitempty"`
+	ID        string     `json:"id,omitempty"`
 	Private   bool       `json:"private"`
 	Tags      []tag      `json:"tags"`
 	Title     string     `json:"title"`
@@ -26,8 +26,8 @@ func (i *item) ConvertToEntry() *entry {
 			Title:   i.Title,
 			Tags:    i.Tags,
 			Date:    i.CreatedAt,
-			Url:     i.URL,
-			Id:      i.Id,
+			URL:     i.URL,
+			ID:      i.ID,
 			Private: i.Private,
 		},
 		LastModified: i.UpdatedAt,
