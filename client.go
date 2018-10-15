@@ -19,13 +19,13 @@ type Client struct {
 	Logger      *log.Logger
 }
 
-func NewClient(urlStr, accessToken string, logger *log.Logger) (*Client, error) {
+func NewClient(accessToken string, logger *log.Logger) (*Client, error) {
 	if len(accessToken) == 0 {
 		return nil, errors.New("missing access token")
 	}
-	parsedURL, err := url.ParseRequestURI(urlStr)
+	parsedURL, err := url.ParseRequestURI("https://qiita.com/api/v2")
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse url: %s", urlStr)
+		return nil, errors.Wrapf(err, "failed to parse url: %s")
 	}
 	var discardLogger = log.New(ioutil.Discard, "", log.LstdFlags)
 	if logger == nil {
