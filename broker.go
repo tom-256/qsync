@@ -154,15 +154,19 @@ func (b *broker) UploadFresh(e *entry) (bool, error) {
 
 func convetInputToTags(s string) ([]tag, error) {
 	if len(s) == 0 {
-		return nil, errors.New("一つ以上のタグをつけてください")
+		return nil, errors.New("１つ以上５つ以下のタグをつけてください")
 	}
 	tagstrings := strings.Split(s, " ")
 
 	var tags []tag
+	if len(tagstrings) > 5 {
+		return nil, errors.New("タグは５つまでです")
+	}
+
 	for _, tagstring := range tagstrings {
 		t := strings.Split(tagstring, ":")
 		if len(t) > 2 {
-			return nil, errors.New("タグの形式が不正です\nsee $qsync help")
+			return nil, errors.New("タグの形式が不正です")
 		}
 		tag := tag{Name: t[0], Versions: make([]string, 0)}
 		if len(t) > 1 {
