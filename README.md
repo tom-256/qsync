@@ -2,6 +2,7 @@
  
 ## :pushpin: 概要
  QiitaのCLIクライアントです。  
+ https://github.com/motemen/blogsync  にインスパイアされました。  
 以下の機能を使用することができます。
  - 投稿をローカルに保存
  - 投稿の更新
