@@ -8,7 +8,6 @@ import (
 )
 
 type Config struct {
-	UserName    string `yaml:"user_name"`
 	AccessToken string `yaml:"access_token"`
 	LocalRoot   string `yaml:"local_root"`
 }

@@ -26,9 +26,9 @@ https://qiita.com/settings/applications
 
 ### 設定ファイルの設置
 設定ファイルを`~/.config/qsync/config.yaml`に設置します。
-以下のようなyamlを書きます。
+以下のようなyamlを書きます。  
+cnofig.yml
 ```
-user_name: Qiitaのユーザ名
 access_token: アクセストークン
 local_root: 記事を保存するパス
 ```
